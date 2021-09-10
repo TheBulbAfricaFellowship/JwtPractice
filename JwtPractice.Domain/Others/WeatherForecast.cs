@@ -1,6 +1,6 @@
 using System;
 
-namespace JwtPractice
+namespace JwtPractice.Domain.Others
 {
     public class WeatherForecast
     {

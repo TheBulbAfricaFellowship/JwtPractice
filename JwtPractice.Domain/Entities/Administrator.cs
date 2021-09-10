@@ -1,11 +1,13 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 
 namespace JwtPractice.Domain.Entities
 {
-    public class Register
+    public class Administrator
     {
+        [Required]
+        public long Id { get; set; }
+
         [Required(ErrorMessage = "First Name is required.")]
         public string FirstName { get; set; }
 
@@ -14,9 +16,14 @@ namespace JwtPractice.Domain.Entities
 
         [EmailAddress(ErrorMessage = "This is not a valid email.")]
         [Required(ErrorMessage = "Email Address is required.")]
-        public string EmailAddress { get; set; }
+        public string Email { get; set; }
 
-        [Required(ErrorMessage = "Password is required.")]
-        public string Password { get; set; }
+        [Required]
+        public DateTime DateProvisioned { get; set; }
+
+        [Required]
+        public long UserId { get; set; }
+
+        public ApplicationUser User { get; set; }
     }
 }

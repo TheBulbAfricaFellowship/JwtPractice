@@ -11,12 +11,4 @@ namespace JwtPractice.Domain.Entities
     {
 
     }
-
-
-
-    //public static class ApplicationUserRole: IdentityUserRole<long>
-    //{
-    //    public const string Admin = "Admin";
-    //    public const string Candidate = "Candidate";
-    //}
 }

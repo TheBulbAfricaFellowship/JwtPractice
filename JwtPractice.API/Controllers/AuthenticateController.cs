@@ -1,4 +1,6 @@
-﻿using JwtPractice.Domain.Entities;
+﻿using JwtPractice.Domain.DTOs;
+using JwtPractice.Domain.Entities;
+using JwtPractice.Domain.Interfaces;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
@@ -17,14 +19,19 @@ namespace JwtPractice.API.Controllers
     public class AuthenticateController : ControllerBase
     {
         private readonly UserManager<ApplicationUser> _userManager;
-        private readonly RoleManager<IdentityRole> _roleManager;
+        private readonly RoleManager<ApplicationRole> _roleManager;
         private readonly IConfiguration _configuration;
+        private readonly ICandidateRepository _candidateRepository;
+        private readonly IAdminRepository _adminRepository;
 
-        public AuthenticateController(UserManager<ApplicationUser> userManager, RoleManager<IdentityRole> roleManager, IConfiguration configuration)
+        public AuthenticateController(UserManager<ApplicationUser> userManager, RoleManager<ApplicationRole> roleManager, 
+            IConfiguration configuration, ICandidateRepository candidateRepository, IAdminRepository adminRepository)
         {
             _userManager = userManager;
             _roleManager = roleManager;
             _configuration = configuration;
+            _candidateRepository = candidateRepository;
+            _adminRepository = adminRepository;
         }
 
 
@@ -37,7 +44,7 @@ namespace JwtPractice.API.Controllers
             ApplicationUser user = await _userManager.FindByEmailAsync(model.EmailAddress);
             if (user != null && await _userManager.CheckPasswordAsync(user, model.Password))
             {
-                IList<string> userRoles = await _userManager.GetRolesAsync(user);
+                IList<string> assignedRoles = await _userManager.GetRolesAsync(user);
 
                 List<Claim> authClaims = new List<Claim>
                 {
@@ -45,9 +52,9 @@ namespace JwtPractice.API.Controllers
                     new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
                 };
 
-                foreach (string userRole in userRoles)
+                foreach (string role in assignedRoles)
                 {
-                    authClaims.Add(new Claim(ClaimTypes.Role, userRole));
+                    authClaims.Add(new Claim(ClaimTypes.Role, role));
                 }
 
                 SymmetricSecurityKey authSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["JWT:Secret"]));
@@ -67,15 +74,13 @@ namespace JwtPractice.API.Controllers
                     token = new JwtSecurityTokenHandler().WriteToken(token),
                     expiration = token.ValidTo
                 };
-
                 return Ok(responseBody);
             }
 
             // Assign response body properties for unsuccessful login
-            responseBody.Message = "Login attempt was unsuccessful.";
+            responseBody.Message = "Login attempt was unsuccessful. Invalid email address or password.";
             responseBody.Status = "Failed";
             responseBody.Payload = null;
-
             return Unauthorized(responseBody);
         }
 
@@ -86,8 +91,8 @@ namespace JwtPractice.API.Controllers
         {
             Response responseBody = new Response();
 
-            var userExists = await _userManager.FindByEmailAsync(model.EmailAddress);
-            if (userExists != null)
+            ApplicationUser userWithConflictingEmail = await _userManager.FindByEmailAsync(model.EmailAddress);
+            if (userWithConflictingEmail != null)
             {
                 responseBody.Message = "A user with this email address already exists";
                 responseBody.Status = "Failed";
@@ -98,15 +103,11 @@ namespace JwtPractice.API.Controllers
             ApplicationUser user = new ApplicationUser()
             {
                 Email = model.EmailAddress,
-                Candidate = new Candidate {
-                    FirstName = model.FirstName,
-                    LastName = model.LastName,
-                    Email = model.EmailAddress,
-                    DateRegistered = DateTime.Now
-                }
+                UserName = $"{model.FirstName}.{model.LastName}",
+                SecurityStamp = Guid.NewGuid().ToString()
             };
 
-            var result = await _userManager.CreateAsync(user, model.Password);
+            IdentityResult result = await _userManager.CreateAsync(user, model.Password);
             if (!result.Succeeded)
             {
                 responseBody.Message = "Registration was not successful. Please try again.";
@@ -115,11 +116,58 @@ namespace JwtPractice.API.Controllers
                 return BadRequest(responseBody);
             }
 
+            await _candidateRepository.CreateAsync(model, user);
+
             responseBody.Message = "Registration completed successfully.";
             responseBody.Status = "Success";
             responseBody.Payload = null;
-            return Created("", responseBody);
+            return Created($"/users/{user.Id}", responseBody);
         }
 
+
+        [HttpPost]
+        [Route("register-admin")]
+        public async Task<IActionResult> RegisterAdmin([FromBody] Register model)
+        {
+            Response responseBody = new Response();
+
+            ApplicationUser userWithConflictingEmail = await _userManager.FindByEmailAsync(model.EmailAddress);
+            if (userWithConflictingEmail != null)
+            {
+                responseBody.Message = "A user with this email address already exists";
+                responseBody.Status = "Failed";
+                responseBody.Payload = null;
+                return Conflict(responseBody);
+            }
+
+            ApplicationUser user = new ApplicationUser()
+            {
+                Email = model.EmailAddress,
+                UserName = $"{model.FirstName}.{model.LastName}",
+                SecurityStamp = Guid.NewGuid().ToString()
+            };
+
+            IdentityResult result = await _userManager.CreateAsync(user, model.Password);
+            if (!result.Succeeded)
+            {
+                responseBody.Message = "Admin registration was not successful. Please try again.";
+                responseBody.Status = "Failed";
+                responseBody.Payload = null;
+                return BadRequest(responseBody);
+            }
+
+            await _adminRepository.CreateAsync(model, user);
+
+            if (!await _roleManager.RoleExistsAsync("Admin"))
+                await _roleManager.CreateAsync(new ApplicationRole() { Name = "Admin" });
+
+            if (await _roleManager.RoleExistsAsync("Admin"))
+                await _userManager.AddToRoleAsync(user, "Admin");
+
+            responseBody.Message = "Admin registration completed successfully.";
+            responseBody.Status = "Success";
+            responseBody.Payload = null;
+            return Created($"/users/{user.Id}", responseBody);
+        }
     }
 }

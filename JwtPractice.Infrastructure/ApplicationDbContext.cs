@@ -2,10 +2,8 @@
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 
-namespace JwtPractice.Infrastructure.Authentication
+namespace JwtPractice.Infrastructure
 {
-    // public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
-    // public class ApplicationDbContext : IdentityDbContext
     public class ApplicationDbContext : IdentityDbContext<ApplicationUser, ApplicationRole, long>
     {
         public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : base(options)
@@ -17,10 +15,23 @@ namespace JwtPractice.Infrastructure.Authentication
         {
             base.OnModelCreating(builder);
 
+            builder.Entity<ApplicationUser>()
+                .Property("Id").UseIdentityColumn();
+
+            builder.Entity<ApplicationRole>()
+                .Property("Id").UseIdentityColumn();
+
             builder.Entity<Candidate>()
                 .HasOne(c => c.User)
-                .WithOne(u => u.Candidate)
-                .HasForeignKey<ApplicationUser>(c => c.Email);
+                .WithOne();
+
+            builder.Entity<Administrator>()
+                .HasOne(a => a.User)
+                .WithOne();
         }
+
+        public DbSet<Candidate> Candidates { get; set; }
+
+        public DbSet<Administrator> Administrators { get; set; }
     }
 }

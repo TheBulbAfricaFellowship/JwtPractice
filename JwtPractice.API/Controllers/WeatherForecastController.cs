@@ -1,12 +1,14 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using JwtPractice.Domain.Others;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Threading.Tasks;
 
 namespace JwtPractice.Controllers
 {
+    [Authorize(Roles = "ADMIN")]
     [ApiController]
     [Route("[controller]")]
     public class WeatherForecastController : ControllerBase
@@ -23,6 +25,8 @@ namespace JwtPractice.Controllers
             _logger = logger;
         }
 
+
+        //[AllowAnonymous]
         [HttpGet]
         public IEnumerable<WeatherForecast> Get()
         {
